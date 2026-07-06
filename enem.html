@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enem 2025 · Natal além da Média</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Caveat:wght@400;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@observablehq/inspector@5/dist/inspector.css">
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.20.9/dist/proj4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.2.0/split.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --fundo: #f8f8f7;
+      --papel: #1a1a1a;
+      --bussola: #E07B00;
+      --muted: rgba(26,26,26,.5);
+      --line: #e5e7eb;
+      --card: #fff;
+    }
+
+    html, body {
+      background: var(--fundo);
+      color: var(--papel);
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: clip; /* hidden quebra position:sticky nos filhos */
+    }
+
+    /* ── NAV ── */
+    nav {
+      /* position: fixed; top: 0; left: 0; right: 0; z-index: 100; */
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 13px 32px; display: flex; align-items: center; justify-content: space-between;
+      background: #f8f8f7; backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line); height: 48px;
+    }
+    .nav-logo {
+      font-family: 'Cinzel', serif; font-size: 13px; font-weight: 600;
+      color: var(--papel); letter-spacing: .06em; text-decoration: none;
+    }
+    .nav-coords { font-size: 9px; letter-spacing: .15em; color: var(--muted); }
+
+    /* ── SEÇÕES DE SCROLL ── */
+    .scroll-section {
+      max-width: 960px; margin: 0 auto;
+      padding: 72px 32px 40px;
+      border-top: 1px solid var(--line);
+    }
+    .scroll-section:first-of-type { border-top: none; padding-top: 120px; }
+
+    .sec-kicker {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .2em; color: var(--bussola); margin-bottom: 8px;
+    }
+    .sec-title {
+      font-family: 'Cinzel', serif; font-size: clamp(1.3rem, 2.5vw, 2rem);
+      font-weight: 600; margin-bottom: 8px; line-height: 1.2;
+    }
+    .sec-sub {
+      font-family: 'Rockwell', cursive; font-size: 0.85rem;
+      color: var(--muted); margin-bottom: 28px;
+    }
+
+    /* ── INSIGHT (destaque) e NOTA (descrição discreta) ── */
+    .insight {
+      font-size: 1.05rem; line-height: 1.5; font-weight: 500;
+      color: var(--papel);
+      border-left: 3px solid var(--bussola); padding-left: 14px;
+      margin: 14px 0 12px; max-width: 62ch;
+    }
+    .insight strong { color: var(--bussola); font-weight: 600; }
+    .nota {
+      font-size: 0.8rem; line-height: 1.55; color: var(--muted);
+      margin: 0 0 26px; max-width: 70ch;
+    }
+
+    /* ── DASHBOARD ── */
+    .dashboard-header {
+      height: 40px; background: var(--card);
+      border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+      display: flex; align-items: center; padding: 0 20px; gap: 12px;
+    }
+    .dash-kicker {
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .15em; color: var(--muted);
+    }
+    .dash-title { font-size: 12px; font-weight: 500; color: var(--papel); }
+    .dash-sep { color: var(--line); }
+
+    .dashboard {
+      height: calc(100vh - 88px); /* nav 48px + dash-header 40px */
+      overflow: hidden;
+      background: var(--fundo);
+    }
+
+    /* Split.js */
+    .split { box-sizing: border-box; overflow-y: auto; overflow-x: hidden; }
+    .split.split-horizontal,
+    .gutter.gutter-horizontal { height: 100%; float: left; }
+    .gutter { background: var(--line); background-repeat: no-repeat; background-position: 50%; }
+    .gutter.gutter-horizontal { cursor: col-resize; width: 6px; }
+    .gutter.gutter-vertical   { cursor: row-resize; height: 6px; background: var(--line); flex-shrink: 0; }
+
+    /* Painel mapa */
+    .panel-map {
+      position: relative; overflow: hidden;
+      background: rgba(28,22,16,.03); height: 100%;
+    }
+    .panel-label {
+      position: absolute; top: 14px; left: 18px; z-index: 2;
+      pointer-events: none;
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .12em; color: var(--muted);
+    }
+    #obs-mapa-natal { width: 100%; height: 100%; }
+    #obs-mapa-natal .observablehq,
+    #obs-mapa-natal .observablehq > * { width: 100%; height: 100%; }
+    .panel-map svg, .panel-map canvas {
+      width: 100% !important; height: auto !important;
+      max-height: 100%; display: block;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: #fff; border-left: 1px solid var(--line);
+      height: 100%; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sidebar-top {
+      flex-shrink: 0; padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .sidebar-main {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; min-height: 0;
+    }
+    #sidebar-pc, #sidebar-barras {
+      overflow-y: auto; overflow-x: hidden;
+      min-height: 0; box-sizing: border-box;
+    }
+    .sidebar-block { padding: 14px 18px; }
+
+    .block-label {
+      font-size: 8px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .12em; color: var(--muted); margin-bottom: 10px;
+    }
+
+    /* Dropdown estilo */
+    .sidebar-top select {
+      width: 100%; padding: 7px 10px;
+      border: 1px solid var(--line); border-radius: 6px;
+      font-size: 11px; font-family: 'Inter', sans-serif;
+      background: rgba(255,255,255,.8); color: var(--papel);
+      appearance: none; cursor: pointer;
+    }
+
+    /* Observable */
+    .observablehq--inspect { display: none; }
+
+    /* SVGs do Observable devem preencher e redimensionar com o Split */
+    .sidebar .observablehq svg,
+    .sidebar .observablehq canvas { width: 100% !important; height: auto !important; display: block; }
+    .panel-map .observablehq { width: 100%; height: 100%; overflow: hidden; }
+    .panel-map .observablehq svg { width: 100% !important; height: auto !important; display: block; }
+
+    /* Legenda rede (abaixo do dropdown) */
+    .legenda-rede {
+      display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .leg-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; color: var(--muted);
+    }
+    .leg-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      border: 2px solid; flex-shrink: 0;
+    }
+
+    /* Área — radio buttons em linha */
+    #observablehq-area label > div,
+    #observablehq-area form > div,
+    #observablehq-area_hist label > div,
+    #observablehq-area_hist form > div {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 16px !important;
+      align-items: center !important;
+    }
+
+    /* ── SCROLLYTELLING: habilidades / histograma / alunos ── */
+    .hab-scroll-container {
+      position: relative;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Barra de seletores: sticky, largura total */
+    .hab-selectors-bar {
+      position: sticky;
+      top: 48px;
+      z-index: 6;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 8px 32px;
+      background: var(--card);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hab-section-id {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .2em; color: var(--bussola);
+    }
+
+    /* Corpo: dois grid columns */
+    /* pra parte do scrollytelling */
+    .hab-body {
+      display: grid;
+      grid-template-columns: 30% 70%;
+      align-items: start;
+    }
+
+    /* Coluna esquerda: passos rolam normalmente */
+    .hab-steps { border-right: 1px solid var(--line); }
+
+    .hab-step {
+      min-height: 80vh;
+      padding: 60px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-bottom: 1px solid var(--line);
+    }
+
+    /* Coluna direita: viz sticky abaixo da barra de seletores */
+    .hab-viz-col {
+      position: sticky;
+      top: calc(48px + 41px); /* nav + selectors bar */
+      min-height: calc(100vh - 89px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 16px 24px 24px;
+    }
+
+    .hab-viz-col .observablehq svg,
+    .hab-viz-col .observablehq canvas {
+      width: 100% !important; height: auto !important; display: block;
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo">Enem 2025 · Natal além da Média</a>
+  <div class="nav-coords">Projeto Final de Visualização de Dados</div>
+</nav>
+
+<!-- ── NARRATIVA DE ABERTURA ───────────────────────-->
+
+
+
+<!-- ── 01: Brasil ───────────────────────────────────────────── -->
+<section class="scroll-section">
+  <div class="sec-kicker">01 · Brasil</div>
+  <div class="sec-title">Desempenho por estado no Enem</div>
+  <!-- <div class="sec-sub">Clique para ver o zoom no Nordeste</div> -->
+    <p class="insight">N e NE possuem um desempenho inferior no contexto brasileiro, mas o <strong>Rio Grande do Norte</strong> se destaca no Nordeste por estar acima da média nacional</p>
+  <div id="observablehq-mapaBrasil1"></div>
+</section>
+
+<!-- ── 02: Nordeste comparativo ─────────────────────────────── -->
+<section class="scroll-section">
+  <div class="sec-kicker">02 · Nordeste</div>
+  <div class="sec-title">Ranking dos estados do Nordeste</div>
+  <div class="sec-sub">RN em destaque</div>
+  <p class="insight">Apesar de não haver uma diferença tão significativa entre os estados, o <strong>Rio Grande do Norte</strong> se destaca em <strong>1º lugar</strong> com uma média geral de <strong>540,9</strong> em 2025</p>
+  <div id="observablehq-grafico_de_barras"></div>
+</section>
+
+<!-- ── 03: Rio Grande do Norte ──────────────────────────────── -->
+<section class="scroll-section">
+  <div class="sec-kicker">03 · Rio Grande do Norte</div>
+  <div class="sec-title">Desempenho por município</div>
+  <div class="sec-sub">Média geral com redação · 2025</div>
+  <p class="insight">Destacam-se como top 5 do estado: Pau dos Ferros, Caicó, Natal, Currais Novos e Parnamirim.
+    Apesar de a maioria dos municípios do RN terem desempenho abaixo da média nacional, Natal influencia muito o desempenho do RN pela quantidade de alunos.</p>
+  <div id="observablehq-Municipios"></div>
+</section>
+
+<!-- ── 04: Histórico ────────────────────────────────────────── -->
+<section class="scroll-section">
+  <div class="sec-kicker">04 · Histórico 2015–2025</div>
+  <div class="sec-title">Evolução da média ao longo do tempo</div>
+  <div class="sec-sub">Brasil · Nordeste · RN · Natal</div>
+  <p class="insight">Nem sempre uma melhora no desempenho médio significa evolução educacional. O período da pandemia, por exemplo, foi marcado por uma diminuição significativa na quantidade de participantes no exame. Contudo, Natal consistentemente mantém seu destaque em relação ao RN e ao Brasil.</p>
+  <div id="observablehq-anoAtual" style="margin-bottom:16px"></div>
+  <div id="observablehq-grafico_historico"></div>
+  <div id="observablehq-grafico_alunos" style="margin-top:24px"></div>
+</section>
+
+
+<!-- ── 05: Dispersão ────────────────────────────────────────── -->
+<section class="scroll-section">
+  <div class="sec-kicker">05 · Dispersão · Natal</div>
+  <div class="sec-title">Tamanho de escola vs. desempenho</div>
+  <div class="sec-sub">Cada ponto é uma escola · Cor = tipo de dependência administrativa</div>
+  <p class="insight">Apesar de municípios maiores influenciarem bastante no desempenho do estado pela quantidade de alunos, esse não é o fator determinante para o desempenho de uma escola em Natal.</p>
+  <div id="observablehq-graficoEscolasNatal_dispersão"></div>
+</section>
+
+
+<!-- ── DASHBOARD: mapa + dropdown + PC + barras ─────────────── -->
+<div class="dashboard-header">
+  <span class="dash-kicker">06 · Explorador</span>
+  <span class="dash-sep">·</span>
+  <span class="dash-title">Escolas de Natal</span>
+</div>
+
+<div class="dashboard">
+
+  <!-- Esquerda: mapa -->
+  <div class="panel-map split split-horizontal" id="panel-map">
+    <div class="panel-label">Natal/RN · clique para selecionar</div>
+    <div id="obs-mapa-natal"></div>
+  </div>
+
+  <!-- Direita: sidebar -->
+  <div class="sidebar split split-horizontal" id="sidebar">
+
+    <!-- Dropdown fixo no topo -->
+    <div class="sidebar-top">
+      <div class="block-label">Escola selecionada</div>
+      <div id="observablehq-dropdownEscola"></div>
+      <!-- <div class="legenda-rede">
+        <div class="leg-item">
+          <div class="leg-dot" style="border-color:#1f77b4"></div> Estadual
+        </div>
+        <div class="leg-item">
+          <div class="leg-dot" style="border-color:#E07B00"></div> Privada
+        </div>
+        <div class="leg-item">
+          <div class="leg-dot" style="border-color:#888888"></div> Federal
+        </div>
+      </div> -->
+    </div>
+
+    <!-- PC + barras resizáveis -->
+    <div class="sidebar-main">
+      <div id="sidebar-pc">
+        <div style="padding:5px 5px 2px">
+            <!-- tava 10 e 14 e 4 -->
+          <div class="block-label">Coordenadas paralelas · ranking por área</div>
+        </div>
+        <div id="observablehq-grafico_linhas_paralelas"></div>
+      </div>
+      <div id="sidebar-barras">
+        <div style="padding:5px 5px 2px">
+          <div class="block-label">Médias por área — vs. Natal</div>
+        </div>
+        <div id="observablehq-barras"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ── 07 / 08 / 09: HABILIDADES · HISTOGRAMA · ALUNOS (scrollytelling) ── -->
+<div class="hab-scroll-container">
+
+  <!-- Barra de seletores: sticky, largura total -->
+  <div class="hab-selectors-bar">
+    <span id="hab-section-id" class="hab-section-id">07 · Habilidades</span>
+    <span class="dash-sep">·</span>
+    <div id="observablehq-escola"></div>
+    <div id="observablehq-referencia"></div>
+    <div id="observablehq-area"></div>
+    <div id="observablehq-area_hist" style="display:none"></div>
+  </div>
+
+  <!-- Corpo: viz (esquerda sticky) + passos (direita scrolling) -->
+  <div class="hab-body">
+
+    <!-- Coluna esquerda: passos que rolam e disparam a troca de viz -->
+    <div class="hab-steps">
+      <div class="hab-step" data-viz="scatter" data-sel="area" data-kicker="07 · Habilidades">
+        <div class="sec-kicker">07 · Habilidades</div>
+        <div class="sec-title">Desempenho nas Habilidades Enem</div>
+        <div class="sec-sub">Gráfico de dispersão por área do conhecimento</div>
+        <p class="insight">Observe, em cada área do conhecimento, se há alguma habilidade ou competência que tem um destaque positivo ou negativo. Use a referência para calibrar a dificuldade da habilidade.</p>
+      </div>
+      <div class="hab-step" data-viz="histograma" data-sel="area_hist" data-kicker="08 · Histograma">
+        <div class="sec-kicker">08 · Histograma</div>
+        <div class="sec-title">Distribuição do desempenho</div>
+        <div class="sec-sub">Histograma do desempenho das escolas</div>
+        <p class="insight">Observe, em cada área do conhecimento, como o desempenho dos alunos se distribuem em torno da média e comparados à referência.</p>
+      </div>
+      <div class="hab-step" data-viz="alunos" data-sel="area" data-kicker="09 · Alunos">
+        <div class="sec-kicker">09 · Alunos</div>
+        <div class="sec-title">Acertos vs. Nota TRI</div>
+        <div class="sec-sub">Coerência pedagógica por escola</div>
+        <p class="insight">Para melhorar o desempenho, nem sempre é necessário um aumento na quantidade de acertos. Um padrão de resposta com maior coerência pedagógica pode levar a melhores resultados. Analise se há uma faixa grande de variação da nota para a mesma quantidade de acertos na escola em análise. </p>
+      </div>
+      <!-- passo de saída: esconde área antes da barra sumir -->
+      <div class="hab-step" data-viz="alunos" data-sel="none" data-kicker="10 · Redação"
+           style="min-height:25vh; border-bottom:none"></div>
+    </div>
+
+    <!-- Coluna direita: viz ativa -->
+    <div class="hab-viz-col">
+      <div class="viz-panel" data-viz="scatter" id="observablehq-grafico_de_dispersão_linha"></div>
+      <div class="viz-panel" data-viz="histograma" id="observablehq-histograma" style="display:none"></div>
+      <div class="viz-panel" data-viz="alunos" id="observablehq-acertos_vs_tri" style="display:none"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ── 10: Redação ────────────────────────────────────────── -->
+<section class="scroll-section">
+  <div class="sec-kicker">10 · Redação</div>
+  <div class="sec-title">Comparativo nas competências de redação</div>
+  <div class="sec-sub">Competências C1–C5 · escola vs. referência</div>
+  <p class="insight">A Redação tem um peso significativo no desempenho geral do aluno. Analise como a escola se comporta em relação à referência em cada competência da Redação.</p>
+  <div id="observablehq-grafico_redacao_barras"></div>
+</section>
+
+<!-- ── SCRIPTS ──────────────────────────────────────────────── -->
+<script type="module">
+  import {Runtime, Inspector} from "https://cdn.jsdelivr.net/npm/@observablehq/runtime@5/dist/runtime.js";
+  import define from "https://api.observablehq.com/d/f4009fa7a7ee2a3b.js?v=4";
+
+  // Split horizontal: mapa | sidebar
+  Split(['#panel-map', '#sidebar'], {
+    sizes: [48, 52], gutterSize: 6, cursor: 'col-resize'
+  });
+
+  // Split vertical dentro da sidebar: PC | barras
+  Split(['#sidebar-pc', '#sidebar-barras'], {
+    direction: 'vertical', sizes: [40, 60], gutterSize: 6, cursor: 'row-resize'
+  });
+
+  // ResizeObserver: quando os painéis do split mudam de tamanho, força SVGs a redimenionar
+  const ro = new ResizeObserver(() => {
+    document.querySelectorAll('.sidebar .observablehq svg, .panel-map .observablehq svg').forEach(svg => {
+      svg.style.width = '99%';
+      requestAnimationFrame(() => { svg.style.width = '100%'; });
+    });
+  });
+  ['#panel-map', '#sidebar-pc', '#sidebar-barras', '#sidebar'].forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) ro.observe(el);
+  });
+
+  // Runtime Observable
+  new Runtime().module(define, name => {
+    if (name === "mapaEsolas_de_Natal")
+      return new Inspector(document.querySelector("#obs-mapa-natal"));
+    if (name === "mapaBrasil1")
+      return new Inspector(document.querySelector("#observablehq-mapaBrasil1"));
+    if (name === "Municipios3")
+      return new Inspector(document.querySelector("#observablehq-Municipios"));
+    if (name === "graficos_de_barras")
+      return new Inspector(document.querySelector("#observablehq-grafico_de_barras"));
+    if (name === "viewof anoAtual")
+      return new Inspector(document.querySelector("#observablehq-anoAtual"));
+    if (name === "grafico_historico")
+      return new Inspector(document.querySelector("#observablehq-grafico_historico"));
+    if (name === "grafico_alunos")
+      return new Inspector(document.querySelector("#observablehq-grafico_alunos"));
+    if (name === "graficoEscolasNatal_dispersão")
+      return new Inspector(document.querySelector("#observablehq-graficoEscolasNatal_dispersão"));
+    if (name === "viewof dropdownEscola")
+      return new Inspector(document.querySelector("#observablehq-dropdownEscola"));
+    if (name === "pcChart")
+      return new Inspector(document.querySelector("#observablehq-grafico_linhas_paralelas"));
+    if (name === "barras")
+      return new Inspector(document.querySelector("#observablehq-barras"));
+    if (name === "viewof area")
+      return new Inspector(document.querySelector("#observablehq-area"));
+    if (name === "viewof escola")
+      return new Inspector(document.querySelector("#observablehq-escola"));
+    if (name === "viewof referencia")
+      return new Inspector(document.querySelector("#observablehq-referencia"));
+    if (name === "grafico_de_dispersão_linha")
+      return new Inspector(document.querySelector("#observablehq-grafico_de_dispersão_linha"));
+    if (name === "viewof area_hist")
+      return new Inspector(document.querySelector("#observablehq-area_hist"));
+    if (name === "histograma")
+      return new Inspector(document.querySelector("#observablehq-histograma"));
+    if (name === "grafico_redacao_barras")
+      return new Inspector(document.querySelector("#observablehq-grafico_redacao_barras"));
+    if (name === "acertos_vs_tri")
+      return new Inspector(document.querySelector("#observablehq-acertos_vs_tri"));
+
+
+    // Células reativas (sem DOM)
+    if (name === "pcAtualizador" || name === "mapaAtualizador")
+      return { fulfilled(){}, rejected(e){ console.error(name, e) }, pending(){} };
+    if (name === "escolaSync")
+      return { fulfilled(){}, rejected(e){ console.error(name,e) }, pending(){} };
+    // Log erros de qualquer outra célula
+    return { rejected: (e) => console.error(`[${name}]`, e) };
+  });
+
+  // Scrollytelling: troca visualização conforme o step que está no centro da tela
+  {
+    const vizPanels   = document.querySelectorAll(".viz-panel");
+    const selArea     = document.querySelector("#observablehq-area");
+    const selAreaHist = document.querySelector("#observablehq-area_hist");
+    const habLabel    = document.querySelector("#hab-section-id");
+    const steps       = document.querySelectorAll(".hab-step[data-viz]");
+
+    function activateStep(viz, sel, kicker) {
+      vizPanels.forEach(p => p.style.display = p.dataset.viz === viz ? "" : "none");
+      selArea.style.display     = sel === "area"      ? "" : "none";
+      selAreaHist.style.display = sel === "area_hist" ? "" : "none";
+      // sel === "none": esconde os dois seletores de área (ex: Redação)
+      if (habLabel) habLabel.textContent = kicker;
+    }
+
+    const obs = new IntersectionObserver(() => {
+      for (const step of [...steps].reverse()) {
+        if (step.getBoundingClientRect().top < innerHeight / 2) {
+          activateStep(step.dataset.viz, step.dataset.sel, step.dataset.kicker);
+          return;
+        }
+      }
+      activateStep("scatter", "area", "07 · Habilidades");
+    }, { rootMargin: "-50% 0% -50% 0%" });
+
+    for (const step of steps) obs.observe(step);
+  }
+</script>
+
+</body>
+</html>
